@@ -172,14 +172,13 @@ core %>%
   group_by(treeid) %>%
   arrange(desc(age)) %>%
   filter(row_number() == 1) %>%
-  collect() %>%
   group_by(date, plotid) %>%
   arrange(desc(age)) %>%
-  summarise(age_mean = mean(age, na.rm = T),
-            age_90quantile = quantile(age, 0.90, na.rm = T),
-            age_5oldest = mean(age[1:5], na.rm = T),
+  summarise(age_mean = mean(age),
+            age_90quantile = quantile(age, 0.90),
+            age_5oldest = mean(age[1:5]),
             age_gini = round(ineq(age, type = "Gini"), 2),
-            age_median = median(age, na.rm = T),
+            age_median = median(age),
             age_iqr = interquantilerange(age)) ->
   age
 
