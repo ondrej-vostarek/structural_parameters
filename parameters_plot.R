@@ -156,19 +156,19 @@ deadwood %>%
 # # age (mean, 90quantile, 5oldest, gini, median, iqr) --------------------
 
 
-core %>%
+core %>% 
   filter(treetype %in% c('0', "m", "x"),    
          growth %in% 1,
          !dbh_mm < 100,
-         !corestatus %in% c(2, 3),
-         missing_years <= 20, 
-         !subcore %in% 'clim') %>%
+         !corestatus %in% c(2, 3)) %>% 
   select(date, plotid, treeid, subcore, missing_years, id) %>%
   inner_join(.,
              ring,
              by = c('id' = 'core_id')) %>%
+  collect() %>%
+  filter(missing_years <= 20 | missing_years %in% NA) %>%
   group_by(date, plotid, treeid, subcore) %>%
-  summarise(age = n() + min(missing_years)) %>%
+  summarise(age = sum(n(), min(missing_years), na.rm = T)) %>%
   group_by(treeid) %>%
   arrange(desc(age)) %>%
   filter(row_number() == 1) %>%
