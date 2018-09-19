@@ -135,7 +135,7 @@ tree %>%
 
 deadwood %>%
   group_by(date, plotid, decay) %>%
-  summarise(volume_dead_lying_decay = pi ^ 2 * sum((dbh_mm * 0.001) ^ 2 / 800) * 10000) %>%
+  summarise(volume_dead_lying_decay = ((pi ^ 2 * sum((dbh_mm * 0.001) ^ 2)) / 800) * 10000) %>%
   filter(!decay %in% 99) %>%
   collect() %>%
   mutate(decay = paste0("volume_dead_lying_decay", decay)) %>%
@@ -148,7 +148,7 @@ deadwood %>%
 
 deadwood %>%
   group_by(date, plotid) %>%
-  summarise(volume_dead_lying = pi ^ 2 * sum((dbh_mm * 0.001) ^ 2 / 800) * 10000) %>%
+  summarise(volume_dead_lying = ((pi ^ 2 * sum((dbh_mm * 0.001) ^ 2)) / 800) * 10000) %>%
   collect() ->
   volume_dead_lying 
 
