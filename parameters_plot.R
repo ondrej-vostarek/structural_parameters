@@ -282,12 +282,12 @@ tree %>%
   filter(!dbh_mm %in% NA) %>%
   mutate(
     decayht = case_when(
-      decayht == 0 ~ 500,
-      decayht == 1 ~ 1500,
-      decayht == 2 ~ 2500,
-      decayht == 3 ~ 3500,
-      decayht == 4 ~ 4500,
-      decayht == 5 ~ 5500)) %>%
+      decayht == 0 ~ 5,
+      decayht == 1 ~ 15,
+      decayht == 2 ~ 25,
+      decayht == 3 ~ 35,
+      decayht == 4 ~ 45,
+      decayht == 5 ~ 55)) %>%
   rowwise() %>%
   mutate(volume_snag = E_VOL_AB_HmDm_HT.f(Hm=1.3, Dm=(dbh_mm * 0.1), mHt = (log(dbh_mm * 0.1)-1.08261)^2/0.275541, sHt = 0, par.lme = SK.par.lme, A=0, B=decayht, iDH = "H")$E_VOL) %>%
   group_by(date, plotid) %>%
