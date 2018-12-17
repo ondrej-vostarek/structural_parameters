@@ -346,7 +346,7 @@ tree %>%
   TB = case_when(
     species_group %in% "broadleaves" ~ exp(-3.7241 + 2.4069 * log(dbh_mm * 0.1)),
     species_group %in% "acer" ~ exp(-3.7241 + 2.4069 * log(dbh_mm * 0.1)),
-    species_group %in% "coniferous" ~ exp(-3.7241 + 2.4069 * log(dbh_mm * 0.1) + (-0.0254 * ba_live_60)),
+    species_group %in% "coniferous" ~ exp(-3.248 + 2.3695 * log(dbh_mm * 0.1) + (-0.0254 * ba_live_60)),
     species_group %in% "fagus" ~ exp(-3.7694 + 2.8003 * log(dbh_mm * 0.1) + (-0.0247 * ba_live_60)),
     species_group %in% "larix" ~ exp(-3.2409 + 2.1412 * log(dbh_mm * 0.1)),
     species_group %in% "picea" ~ exp(-3.3163 + 2.1983 * log(dbh_mm * 0.1)),
