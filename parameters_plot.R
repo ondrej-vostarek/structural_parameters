@@ -473,12 +473,10 @@ dist_plot_event %>%
 # # disturbance_recent ----------------------------------------------------
 
 
-plot %>%
-  filter(census %in% 1) %>%
-  select(plot_id = id, date, plotid, country, foresttype, location) %>%
-  inner_join(., tree %>% select(plot_id, species, onplot, dbh_mm, growth, decay), by = 'plot_id') %>%
+tree %>% 
+  select(date, plotid, country, foresttype, location, species, onplot, dbh_mm, growth, decay) %>%
   filter(onplot %in% c(1:3), growth %in% c(1,-1,99)) %>%              
-  inner_join(.,tbl(KELuser, 'species_fk') %>% select(species = id, sp_group_dist), by = "species") %>%
+  inner_join(., tbl(KELuser, 'species_fk') %>% select(species = id, sp_group_dist), by = "species") %>%
   inner_join(., tbl(KELuser, 'dist_group'), by = c("country", "foresttype", "location", "sp_group_dist")) %>% 
   inner_join(., tbl(KELuser, 'dist_param') %>% select(dist_param = id, Tdbh_mm = dbh_mm, dbh_ca_f), by = "dist_param") %>% 
   filter(dbh_mm >= Tdbh_mm) %>%
