@@ -220,6 +220,7 @@ regeneration %>%
 
 
 regeneration_subplot %>%
+  filter(htclass %in% 0) %>%
   group_by(date, plotid) %>%
   summarise(regeneration_0_50 = sum(count) * 10000 / 20) %>%
   collect() -> 
