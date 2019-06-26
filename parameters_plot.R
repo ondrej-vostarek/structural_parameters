@@ -157,14 +157,14 @@ deadwood %>%
 
 
 core %>% 
-  filter(treetype %in% c('0', "m", "x"),    
+  filter(treetype %in% "0" & onplot %in% c(1, 2) | treetype %in% c("m", "x"),    
          growth %in% 1,
          !dbh_mm < 100,
          !corestatus %in% c(2, 3)) %>% 
-  select(date, plotid, treeid, subcore, missing_years, id) %>%
+  select(date, plotid, treeid, subcore, missing_years, core_id = id) %>%
   inner_join(.,
              ring,
-             by = c('id' = 'core_id')) %>%
+             by = 'core_id') %>%
   collect() %>%
   filter(missing_years <= 20 | missing_years %in% NA) %>%
   group_by(date, plotid, treeid, subcore) %>%
@@ -172,6 +172,9 @@ core %>%
   group_by(treeid) %>%
   arrange(desc(age)) %>%
   filter(row_number() == 1) %>%
+  # ungroup() %>%                                                           
+  # mutate(age = ifelse(date %in% max(date), age - (max(date) - min(date)), age),
+  #        date = min(date)) %>%
   group_by(date, plotid) %>%
   arrange(desc(age)) %>%
   summarise(age_mean = mean(age),
