@@ -1,8 +1,24 @@
-deg2rad <- function(deg) {(deg * pi) / 180}
+deg2rad <- function(deg) {
+  #'@description converts degrees into radians
+  #'@param deg value in degrees
+  
+  (deg * pi) / 180
+  
+}
 
-interquantilerange <- function(x){quantile(x, 0.75, na.rm = T) - quantile(x, 0.25, na.rm = T)}
+interquantilerange <- function(x){
+  #'@description calculate the range between 0.75 and 0.25 quantile
+  #'@param x vector of numerical values
+  
+  quantile(x, 0.75, na.rm = T) - quantile(x, 0.25, na.rm = T)
+  
+}
 
 movingSum <- function(x, windowLength = 30){
+  #'@description calculate the moving sum of values
+  #'@param x vector of numerical values
+  #'@param windowLength length of the moving window
+  
   rollapply( x, 
              width = windowLength,
              FUN = sum,
@@ -12,9 +28,18 @@ movingSum <- function(x, windowLength = 30){
              partial = TRUE)
 }
 
-volume <- function(SM, y){(SM * 0.001) / y}
+volume <- function(SM, y){
+  #'@description calculate tree volume in m3 from stem mass and wood density
+  #'@param SM stem mass in kg
+  #'@param y wood density in g/cm3
+  
+  (SM * 0.001) / y
+  
+}
 
 get_data <- function(plot.id){
+  #'@description collect necessary data from database and return them as data.list
+  #'@param plot.id id of plots as in 'plot' table in database
   
   plot <- tbl(KELuser, "plot") %>% 
     filter(id %in% plot.id) %>% 
@@ -66,6 +91,8 @@ get_data <- function(plot.id){
 }
 
 calculate_parameters <- function(data){
+  #'@description calculate the structural parameters
+  #'@param data data.list as produced by the get_data function
   
   parameters <- list()
   
@@ -504,6 +531,8 @@ calculate_parameters <- function(data){
 }
 
 collect_data <- function(data){
+  #'@description collect all data.list sheets into one data.frame
+  #'@param data data.list as produced by the calculate_parameters function
   
   data.all <- data$aspect_southness %>%
     full_join(., data$nearest_plot, by = "plot_id") %>%
