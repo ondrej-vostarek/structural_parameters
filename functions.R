@@ -134,7 +134,7 @@ calculate_parameters <- function(data){
   # tree parameters
   
   parameters$tree_parameters <- data$tree %>%
-    filter(treetype %in% 0) %>%
+    filter(!onplot %in% c(0, 99)) %>%
     mutate(ba = pi * dbh_mm ^ 2 / 4 / 1000000) %>%
     group_by(plot_id) %>%
     summarise(plotsize = first(plotsize),
@@ -179,7 +179,7 @@ calculate_parameters <- function(data){
   parameters$height_max <- data$tree %>% group_by(plot_id) %>% summarise(height_max = max(height_m))
   
   parameters$dominant_species <- data$tree %>%
-    filter(treetype %in% 0,
+    filter(!onplot %in% c(0, 99),
            status %in% c(1:4)) %>%
     mutate(ba = pi * dbh_mm ^ 2 / 4 / 1000000) %>%
     group_by(plot_id, species) %>%
@@ -192,7 +192,7 @@ calculate_parameters <- function(data){
   # biomass and volume of alive trees
   
   parameters$biomass_volume <- data$tree %>%
-    filter(treetype %in% 0,
+    filter(!onplot %in% c(0, 99),
            status %in% c(1:4)) %>%
     left_join(., parameters$tree_parameters %>% select(plot_id, ba_live_60), by = "plot_id") %>%
     mutate(species_group = case_when(
@@ -335,7 +335,7 @@ calculate_parameters <- function(data){
   # volume of dead standing trees
   
   parameters$volume_dead_standing <- data$tree %>%
-    filter(treetype %in% 0,
+    filter(!onplot %in% c(0, 99),
            status %in% c(11:23),
            !decayht %in% 99,
            !dbh_mm %in% NA) %>%
@@ -358,7 +358,7 @@ calculate_parameters <- function(data){
   # recent disturbance
   
   parameters$disturbance_recent <- data$tree %>% 
-    filter(treetype %in% 0, 
+    filter(!onplot %in% c(0, 99), 
            growth %in% c(1,-1,99)) %>%              
     inner_join(., tbl(KELuser, 'species_fk') %>% select(species = id, sp_group_dist), by = "species", copy = TRUE) %>%
     inner_join(., tbl(KELuser, 'dist_group'), by = c("country", "foresttype", "location", "sp_group_dist"), copy = TRUE) %>% 
