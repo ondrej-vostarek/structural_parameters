@@ -176,7 +176,7 @@ calculate_parameters <- function(data){
     mutate_at(vars(dbh_gini_live_60, dbh_gini_live_100), funs(round(., 2))) %>%
     select(-plotsize)
   
-  parameters$height_max <- data$tree %>% group_by(plot_id) %>% summarise(height_max = max(height_m))
+  parameters$height_max <- data$tree %>% group_by(plot_id) %>% summarise(height_max = max(height_m, na.rm = T))
   
   parameters$dominant_species <- data$tree %>%
     filter(!onplot %in% c(0, 99),
