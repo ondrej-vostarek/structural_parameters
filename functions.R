@@ -28,12 +28,12 @@ movingSum <- function(x, windowLength = 30){
              partial = TRUE)
 }
 
-volume <- function(SM, y){
+volume <- function(SM, density_gCm3){
   #'@description calculate tree volume in m3 from stem mass and wood density
   #'@param SM stem mass in kg
-  #'@param y wood density in g/cm3
+  #'@param density_gCm3 wood density in g/cm3
   
-  (SM * 0.001) / y
+  (SM * 0.001) / density_gCm3
   
 }
 
@@ -50,7 +50,7 @@ get_data <- function(plot.id){
     inner_join(., plot, by = 'plot_id')
   
   deadwood <- tbl(KELuser, "deadwood") %>%  
-    select(plot_id, dbh_mm, decay) %>% 
+    select(plot_id, species, dbh_mm, decay) %>% 
     inner_join(., plot, by = 'plot_id')
   
   core <- tbl(KELuser, "core") %>% 
@@ -74,6 +74,8 @@ get_data <- function(plot.id){
   
   canopy_analysis <- tbl(KELuser, "canopy_analysis") %>% inner_join(., plot, by = "plot_id")
  
+  wood_density <- tbl(KELuser, "wood_density")
+  
   data <- list()
   
   data$plot <- collect(plot)
@@ -85,6 +87,7 @@ get_data <- function(plot.id){
   data$regeneration_subplot <- collect(regeneration_subplot)
   data$dist_plot_event <- collect(dist_plot_event)
   data$canopy_analysis <- collect(canopy_analysis)
+  data$wood_density <- collect(wood_density)
   
   return(data) 
   
@@ -195,6 +198,7 @@ calculate_parameters <- function(data){
     filter(!onplot %in% c(0, 99),
            status %in% c(1:4)) %>%
     left_join(., parameters$tree_parameters %>% select(plot_id, ba_live_60), by = "plot_id") %>%
+    left_join(., data$wood_density %>% distinct(., species, density_gCm3), by = "species") %>%
     mutate(species_group = case_when(
       species %in% "Fagus sylvatica" ~ "fagus",
       species %in% "Acer pseudoplatanus" ~ "acer",
@@ -274,45 +278,7 @@ calculate_parameters <- function(data){
       species_group %in% "abies" ~ exp(-3.2683 + 2.5768 * log(dbh_mm * 0.1)),
       species_group %in% "pinus" ~ exp(-2.3583 + 2.308 * log(dbh_mm * 0.1))
     ),
-    volume_live = case_when(
-      species %in% "Fagus sylvatica" ~ volume(SM, 0.59), 
-      species %in% "Acer pseudoplatanus" ~ volume(SM, 0.51),
-      species %in% "Acer platanoides" ~ volume(SM, 0.51),
-      species %in% "Acer" ~ volume(SM, 0.51),
-      species %in% "Ulmus" ~ volume(SM, 0.55),
-      species %in% "Sorbus aria" ~ volume(SM, 0.63),
-      species %in% "Acer obtusifolium" ~ volume(SM, 0.51),
-      species %in% "Sorbus aucuparia" ~ volume(SM, 0.63),
-      species %in% "Betula pendula" ~ volume(SM, 0.53),
-      species %in% "Salix" ~ volume(SM, 0.35),
-      species %in% "Sambucus racemosa" ~ volume(SM, 0.45),
-      species %in% "Fraxinus excelsior" ~ volume(SM, 0.56) ,
-      species %in% "Tilia cordata" ~ volume(SM, 0.42),
-      species %in% "Tilia" ~ volume(SM, 0.42),
-      species %in% "Acer obtusatum" ~ volume(SM, 0.51),
-      species %in% "Rhamnus" ~ volume(SM, 0.61),
-      species %in% "Lians" ~ volume(SM, 0.54),
-      species %in% "Populus tremula" ~ volume(SM, 0.37),
-      species %in% "Corylus avellana" ~ volume(SM, 0.52),
-      species %in% "Fraxinus" ~ volume(SM, 0.56),
-      species %in% "Ulmus glabra" ~ volume(SM, 0.55),
-      species %in% "Broadleaves" ~ volume(SM, 0.54),
-      species %in% "Sambucus nigra" ~ volume(SM,0.45),
-      species %in% "Salix nigra" ~ volume(SM, 0.35),
-      species %in% "Laburnum anagyroides" ~ volume(SM, 0.72),
-      species %in% "Fraxinus ornus" ~ volume(SM, 0.56),
-      species %in% "Salix caprea" ~ volume(SM, 0.35),
-      species %in% "Betula" ~ volume(SM, 0.53),
-      species %in% "Carpinus betulus" ~ volume(SM, 0.71),
-      species %in% "Larix decidua" ~ volume(SM, 0.47),
-      species %in% "Abies alba" ~ volume(SM, 0.35),
-      species %in% "Picea abies" ~ volume(SM, 0.37),
-      species %in% "Abies" ~ volume(SM, 0.35),
-      species %in% "Coniferous" ~ volume(SM, 0.41),
-      species %in% "Taxus baccata" ~ volume(SM, 0.55),
-      species %in% "Pinus sylvestris" ~ volume(SM, 0.42),
-      species %in% "Pinus cembra" ~ volume(SM, 0.42)
-    ),
+    volume_live = volume(SM, density_gCm3),
     biomass_aboveground = TB + FM + SM,
     biomass_underground = RM) %>%
     group_by(plot_id) %>%
@@ -332,7 +298,7 @@ calculate_parameters <- function(data){
            biomass_underground_100 = ifelse(biomass_underground_100 %in% 0, NA, biomass_underground_100)) %>%
     select(-plotsize)
 
-  # volume of dead standing trees
+  # volume and biomass of dead standing trees
   
   parameters$volume_dead_standing <- data$tree %>%
     filter(!onplot %in% c(0, 99),
@@ -354,6 +320,30 @@ calculate_parameters <- function(data){
     group_by(plot_id) %>%
     summarise(volume_dead_standing_60 = sum(volume_snag[dbh_mm >= 60]) * 10000 / min(plotsize),
               volume_dead_standing_100 = sum(volume_snag[dbh_mm >= 100]) * 10000 / min(plotsize))
+  
+  parameters$biomass_dead_standing <- data$tree %>%
+    filter(!onplot %in% c(0, 99),
+           status %in% c(11:23),
+           !decayht %in% 99,
+           !dbh_mm %in% NA,
+           !species %in% "99") %>%
+    left_join(., data$wood_density, by = c("species", "decay" = "decay_class")) %>%
+    mutate(
+      decayht = case_when(
+        decayht == 0 ~ 5,
+        decayht == 1 ~ 15,
+        decayht == 2 ~ 25,
+        decayht == 3 ~ 35,
+        decayht == 4 ~ 45,
+        decayht == 5 ~ 55)) %>%
+    rowwise() %>%
+    mutate(volume_snag = E_VOL_AB_HmDm_HT.f(Hm=1.3, Dm=(dbh_mm * 0.1), 
+                                            mHt = (log(dbh_mm * 0.1)-1.08261)^2/0.275541, 
+                                            sHt = 0, par.lme = SK.par.lme, A=0, B=decayht, iDH = "H")$E_VOL,
+           biomass = volume_snag * (density_gCm3 * relative_density * 1000)) %>%
+    group_by(plot_id) %>%
+    summarise(biomass_dead_standing_60 = sum(biomass[dbh_mm >= 60]) * 10000 / min(plotsize),
+              biomass_dead_standing_100 = sum(biomass[dbh_mm >= 100]) * 10000 / min(plotsize))
   
   # recent disturbance
   
@@ -430,7 +420,7 @@ calculate_parameters <- function(data){
            disturbance_index = round(disturbance_index, 2)) %>%
     select(plot_id, disturbance_index)  
   
-  # volume of laying deadwood
+  # volume and biomass of laying deadwood
   
   parameters$volume_dead_lying_decay <- data$deadwood %>%
     filter(!decay %in% 99) %>%
@@ -442,6 +432,15 @@ calculate_parameters <- function(data){
   parameters$volume_dead_lying <- data$deadwood %>%
     group_by(plot_id) %>%
     summarise(volume_dead_lying = ((pi ^ 2 * sum((dbh_mm * 0.001) ^ 2)) / 800) * 10000)
+  
+  parameters$biomass_dead_lying <- data$deadwood %>%
+    filter(!decay %in% 99 & !species %in% "99") %>%
+    left_join(., data$wood_density, by = c("species", "decay" = "decay_class")) %>%
+    group_by(plot_id, decay, species) %>%
+    summarise(volume = ((pi ^ 2 * sum((dbh_mm * 0.001) ^ 2)) / 800) * 10000,
+              biomass = volume * (first(density_gCm3) * first(relative_density) * 1000)) %>%
+    group_by(plot_id) %>%
+    summarise(biomass_dead_lying = sum(biomass))
   
   # age parameters
   
@@ -541,11 +540,13 @@ collect_data <- function(data){
     full_join(., data$dominant_species, by = "plot_id") %>%
     full_join(., data$biomass_volume, by = "plot_id") %>%
     full_join(., data$volume_dead_standing, by = "plot_id") %>%
+    full_join(., data$biomass_dead_standing, by = "plot_id") %>%
     full_join(., data$disturbance_recent, by = "plot_id") %>%  
     full_join(., data$disturbance_parameters, by = "plot_id") %>%
     full_join(., data$disturbance_index, by = "plot_id") %>%
     full_join(., data$volume_dead_lying_decay, by = "plot_id") %>%
     full_join(., data$volume_dead_lying, by = "plot_id") %>%
+    full_join(., data$biomass_dead_lying, by = "plot_id") %>%
     full_join(., data$age_parameters, by = "plot_id") %>%
     full_join(., data$regeneration_htclass, by = "plot_id") %>%
     full_join(., data$regeneration_250_dbh_min, by = "plot_id") %>%
