@@ -76,6 +76,8 @@ get_data <- function(plot.id){
  
   wood_density <- tbl(KELuser, "wood_density")
   
+  biomass_eq <- tbl(KELuser, "biomass_eq")
+  
   data <- list()
   
   data$plot <- collect(plot)
@@ -88,6 +90,7 @@ get_data <- function(plot.id){
   data$dist_plot_event <- collect(dist_plot_event)
   data$canopy_analysis <- collect(canopy_analysis)
   data$wood_density <- collect(wood_density)
+  data$biomass_eq <- collect(biomass_eq)
   
   return(data) 
   
@@ -197,90 +200,17 @@ calculate_parameters <- function(data){
   parameters$biomass_volume <- data$tree %>%
     filter(!onplot %in% c(0, 99),
            status %in% c(1:4)) %>%
-    left_join(., parameters$tree_parameters %>% select(plot_id, ba_live_60), by = "plot_id") %>%
     left_join(., data$wood_density %>% distinct(., species, density_gCm3), by = "species") %>%
-    mutate(species_group = case_when(
-      species %in% "Fagus sylvatica" ~ "fagus",
-      species %in% "Acer pseudoplatanus" ~ "acer",
-      species %in% "Acer platanoides" ~ "broadleaves",
-      species %in% "Acer" ~ "broadleaves",
-      species %in% "Ulmus" ~ "broadleaves",
-      species %in% "Sorbus aria" ~ "broadleaves",
-      species %in% "Acer obtusifolium" ~ "broadleaves",
-      species %in% "Sorbus aucuparia" ~ "broadleaves",
-      species %in% "Betula pendula" ~ "broadleaves",
-      species %in% "Salix" ~ "broadleaves",
-      species %in% "Sambucus racemosa" ~ "broadleaves",
-      species %in% "Fraxinus excelsior" ~ "broadleaves",
-      species %in% "Tilia cordata" ~ "broadleaves",
-      species %in% "Tilia" ~ "broadleaves",
-      species %in% "Acer obtusatum" ~ "broadleaves",
-      species %in% "Rhamnus" ~ "broadleaves",
-      species %in% "Lians" ~ "broadleaves",
-      species %in% "Populus tremula" ~ "broadleaves",
-      species %in% "Corylus avellana" ~ "broadleaves",
-      species %in% "Fraxinus" ~ "broadleaves",
-      species %in% "Ulmus glabra" ~ "broadleaves",
-      species %in% "Broadleaves" ~ "broadleaves",
-      species %in% "Sambucus nigra" ~ "broadleaves",
-      species %in% "Salix nigra" ~ "broadleaves",
-      species %in% "Laburnum anagyroides" ~ "broadleaves",
-      species %in% "Fraxinus ornus" ~ "broadleaves",
-      species %in% "Salix caprea" ~ "broadleaves",
-      species %in% "Betula" ~ "broadleaves",
-      species %in% "Carpinus betulus" ~ "broadleaves",
-      species %in% "Larix decidua" ~ "larix",
-      species %in% "Abies alba" ~ "abies",
-      species %in% "Picea abies" ~ "picea",
-      species %in% "Abies" ~ "abies",
-      species %in% "Coniferous" ~ "coniferous",
-      species %in% "Taxus baccata" ~ "coniferous",
-      species %in% "Pinus sylvestris" ~ "pinus",
-      species %in% "Pinus cembra" ~ "pinus"
-    ),
-    TB = case_when(
-      species_group %in% "broadleaves" ~ exp(-3.7241 + 2.4069 * log(dbh_mm * 0.1)),
-      species_group %in% "acer" ~ exp(-3.7241 + 2.4069 * log(dbh_mm * 0.1)),
-      species_group %in% "coniferous" ~ exp(-3.248 + 2.3695 * log(dbh_mm * 0.1) + (-0.0254 * ba_live_60)),
-      species_group %in% "fagus" ~ exp(-3.7694 + 2.8003 * log(dbh_mm * 0.1) + (-0.0247 * ba_live_60)),
-      species_group %in% "larix" ~ exp(-3.2409 + 2.1412 * log(dbh_mm * 0.1)),
-      species_group %in% "picea" ~ exp(-3.3163 + 2.1983 * log(dbh_mm * 0.1)),
-      species_group %in% "abies" ~ exp(-3.3163 + 2.1983 * log(dbh_mm * 0.1)),
-      species_group %in% "pinus" ~ exp(-3.6641 + 2.1601 * log(dbh_mm * 0.1))
-    ),
-    FM = case_when(
-      species_group %in% "broadleaves" ~ exp(-4.2286 + 1.8625 * log(dbh_mm * 0.1)),
-      species_group %in% "acer" ~ exp(-4.0625 + 2.0662 * log(dbh_mm * 0.1)),
-      species_group %in% "coniferous" ~ exp(-2.6019 + 2.1097 * log(dbh_mm * 0.1) + (-0.0404 * ba_live_60)),
-      species_group %in% "fagus" ~ exp(-4.4813 + 1.9073 * log(dbh_mm * 0.1)),
-      species_group %in% "larix" ~ exp(-3.8849 + 1.7502 * log(dbh_mm * 0.1)),
-      species_group %in% "picea" ~ exp(-2.1305 + 2.0087 * log(dbh_mm * 0.1) + (-0.0324 * ba_live_60)),
-      species_group %in% "abies" ~ exp(-2.1305 + 2.0087 * log(dbh_mm * 0.1) + (-0.0324 * ba_live_60)),
-      species_group %in% "pinus" ~ exp(-2.4122 + 1.8683 * log(dbh_mm * 0.1) + (-0.0537 * ba_live_60))
-    ),
-    RM = case_when(
-      species_group %in% "broadleaves" ~ exp(-2.6183 + 2.1353 * log(dbh_mm * 0.1)),
-      species_group %in% "acer" ~ exp(-2.6183 + 2.1353 * log(dbh_mm * 0.1)),
-      species_group %in% "coniferous" ~ exp(-4.0287 + 2.4957 * log(dbh_mm * 0.1)),
-      species_group %in% "fagus" ~ exp(-3.1432 + 2.3794 * log(dbh_mm * 0.1) + (-0.0125 * ba_live_60)),
-      species_group %in% "larix" ~ exp(-3.6347 + 2.3038 * log(dbh_mm * 0.1)),
-      species_group %in% "picea" ~ exp(-3.7387 + 2.4323 * log(dbh_mm * 0.1)),
-      species_group %in% "abies" ~ exp(-3.7387 + 2.4323 * log(dbh_mm * 0.1)),
-      species_group %in% "pinus" ~ exp(-3.6347 + 2.3038 * log(dbh_mm * 0.1))
-    ),
-    SM = case_when(
-      species_group %in% "broadleaves" ~ exp(-2.4521 + 2.4115 * log(dbh_mm * 0.1)),
-      species_group %in% "acer" ~ exp(-2.4521 + 2.4115 * log(dbh_mm * 0.1)),
-      species_group %in% "coniferous" ~ exp(-2.7693 + 2.3761 * log(dbh_mm * 0.1) + (0.0072 * ba_live_60)),
-      species_group %in% "fagus" ~ exp(-1.4487 + 2.1661 * log(dbh_mm * 0.1)),
-      species_group %in% "larix" ~ exp(-2.4105 + 2.424 * log(dbh_mm * 0.1)),
-      species_group %in% "picea" ~ exp(-2.5027 + 2.3404 * log(dbh_mm * 0.1)),
-      species_group %in% "abies" ~ exp(-3.2683 + 2.5768 * log(dbh_mm * 0.1)),
-      species_group %in% "pinus" ~ exp(-2.3583 + 2.308 * log(dbh_mm * 0.1))
-    ),
-    volume_live = volume(SM, density_gCm3),
-    biomass_aboveground = TB + FM + SM,
-    biomass_underground = RM) %>%
+    left_join(., data$biomass_eq, by = "species") %>%
+    left_join(., parameters$tree_parameters %>% select(plot_id, ba_live_60), by = "plot_id") %>%
+    rowwise() %>%
+    mutate(TB = eval(parse(text = branches_mass_f)),
+           FM = eval(parse(text = foliage_mass_f)),
+           RM = eval(parse(text = root_mass_f)),
+           SM = eval(parse(text = stem_mass_f)),
+           volume_live = volume(SM, density_gCm3),
+           biomass_aboveground = TB + FM + SM,
+           biomass_underground = RM) %>%
     group_by(plot_id) %>%
     summarise(plotsize = first(plotsize),
               volume_live_60 = sum(volume_live[dbh_mm >= 60], na.rm = T),
