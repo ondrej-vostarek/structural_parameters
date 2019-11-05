@@ -17,7 +17,7 @@ data.list <- get_data(plot.id)
 
 data.param <- calculate_parameters(data.list)
 
-# collect everything ----------------------------------------------------
+# collect everything ------------------------------------------------------
 
 data.all <- collect_data(data.param)
 

@@ -46,47 +46,74 @@ get_data <- function(plot.id){
     select(plot_id = id, date, plotid, census, country, location, lng, lat, plotsize, foresttype, altitude_m, aspect)
   
   tree <- tbl(KELuser, "tree") %>% 
-    select(tree_id = id, plot_id, treeid, onplot, treetype, status, growth, species, dbh_mm, height_m, decayht, decay) %>% 
+    select(tree_id = id, plot_id, treeid, onplot, treetype, status, growth, species, dbh_mm, height_m, decayht, decay, decay_wood) %>% 
     inner_join(., plot, by = 'plot_id')
   
-  deadwood <- tbl(KELuser, "deadwood") %>%  
-    select(plot_id, species, dbh_mm, decay) %>% 
-    inner_join(., plot, by = 'plot_id')
-  
+  deadwood <- tbl(KELuser, "deadwood") %>% 
+    inner_join(., plot, by = 'plot_id') %>%
+    select(plot_id, species, dbh_mm, decay)
+
+  deadwood_tree <- tbl(KELuser, "deadwood_tree") %>%
+    filter(volume_m3 > 0) %>%
+    inner_join(., plot, by = "plot_id") %>%
+    select(plot_id, plotsize, species, decay, volume_m3)
+
   core <- tbl(KELuser, "core") %>% 
-    select(core_id = id, tree_id, subcore, missing_years, corestatus) %>% 
-    inner_join(., tree, by = 'tree_id')
-  
-  ring <- tbl(KELuser, "ring") 
-  
+    inner_join(., tree, by = 'tree_id') %>%
+    filter(treetype %in% "0" & onplot %in% c(1, 2) | treetype %in% c("m", "x"),    
+           growth %in% 1,
+           !dbh_mm < 100,
+           !corestatus %in% c(2, 3)) %>% 
+    inner_join(., tbl(KELuser, "ring"), by = c("id" = "core_id")) %>%
+    select(date, plotid, treeid, subcore, missing_years) 
+
   regeneration <- tbl(KELuser, "regeneration") %>% 
-    select(plot_id, htclass, count) %>%
-    inner_join(., plot, by = "plot_id")
+    inner_join(., plot, by = "plot_id") %>%
+    select(plot_id, foresttype, plotsize, htclass, count)
   
   regeneration_subplot <- tbl(KELuser, "regeneration_subplot") %>% 
-    select(plot_id, htclass, browsing, count) %>%
-    inner_join(., plot, by = "plot_id")
+    inner_join(., plot, by = "plot_id") %>%
+    select(plot_id, htclass, browsing, count)
+
+  recent_dist <- tree %>% 
+    filter(!onplot %in% c(0, 99), 
+           growth %in% c(1,-1,99)) %>%              
+    inner_join(., 
+               tbl(KELuser, 'species_fk') %>% select(species = id, sp_group_dist), 
+               by = "species") %>%
+    inner_join(.,
+               tbl(KELuser, 'dist_group'), 
+               by = c("country", "foresttype", "location", "sp_group_dist")) %>% 
+    inner_join(.,
+               tbl(KELuser, 'dist_param') %>% select(dist_param = id, Tdbh_mm = dbh_mm, dbh_ca_f), 
+               by = "dist_param") %>% 
+    filter(dbh_mm >= Tdbh_mm) %>%
+    select(plot_id, dbh_mm, decay, dbh_ca_f)
   
   dist_plot_event <- tbl(KELuser, "dist_plot_event") %>% 
     inner_join(., tbl(KELuser, "dist_plot"), by = c("dist_plot_id" = "id")) %>%
     inner_join(., plot, by = "plot_id") %>%
     select(id, plot_id, year, ca_per, kde)
   
-  canopy_analysis <- tbl(KELuser, "canopy_analysis") %>% inner_join(., plot, by = "plot_id")
+  canopy_analysis <- tbl(KELuser, "canopy_analysis") %>% 
+    inner_join(., plot, by = "plot_id") %>%
+    filter(parameter %in% "openness") %>%
+    select(plot_id, value)
  
   wood_density <- tbl(KELuser, "wood_density")
   
   biomass_eq <- tbl(KELuser, "biomass_eq")
-  
+    
   data <- list()
   
   data$plot <- collect(plot)
   data$tree <- collect(tree)
   data$deadwood <- collect(deadwood)
+  data$deadwood_tree <- collect(deadwood_tree)
   data$core <- collect(core)
-  data$ring <- collect(ring)
   data$regeneration <- collect(regeneration)
   data$regeneration_subplot <- collect(regeneration_subplot)
+  data$recent_dist <- collect(recent_dist)
   data$dist_plot_event <- collect(dist_plot_event)
   data$canopy_analysis <- collect(canopy_analysis)
   data$wood_density <- collect(wood_density)
@@ -235,14 +262,13 @@ calculate_parameters <- function(data){
            status %in% c(11:23),
            !decayht %in% 99,
            !dbh_mm %in% NA) %>%
-    mutate(
-      decayht = case_when(
-        decayht == 0 ~ 5,
-        decayht == 1 ~ 15,
-        decayht == 2 ~ 25,
-        decayht == 3 ~ 35,
-        decayht == 4 ~ 45,
-        decayht == 5 ~ 55)) %>%
+    mutate(decayht = case_when(
+      decayht == 0 ~ 5,
+      decayht == 1 ~ 15,
+      decayht == 2 ~ 25,
+      decayht == 3 ~ 35,
+      decayht == 4 ~ 45,
+      decayht == 5 ~ 55)) %>%
     rowwise() %>%
     mutate(volume_snag = E_VOL_AB_HmDm_HT.f(Hm=1.3, Dm=(dbh_mm * 0.1), 
                                             mHt = (log(dbh_mm * 0.1)-1.08261)^2/0.275541, 
@@ -256,16 +282,17 @@ calculate_parameters <- function(data){
            status %in% c(11:23),
            !decayht %in% 99,
            !dbh_mm %in% NA,
-           !species %in% "99") %>%
-    left_join(., data$wood_density, by = c("species", "decay" = "decay_class")) %>%
-    mutate(
-      decayht = case_when(
-        decayht == 0 ~ 5,
-        decayht == 1 ~ 15,
-        decayht == 2 ~ 25,
-        decayht == 3 ~ 35,
-        decayht == 4 ~ 45,
-        decayht == 5 ~ 55)) %>%
+           !species %in% "99",
+           decay %in% c(1:5) | decay_wood %in% c(1:5)) %>%
+    mutate(decayht = case_when(
+      decayht == 0 ~ 5,
+      decayht == 1 ~ 15,
+      decayht == 2 ~ 25,
+      decayht == 3 ~ 35,
+      decayht == 4 ~ 45,
+      decayht == 5 ~ 55),
+      decay_class = ifelse(decay_wood %in% 99, round(0.2924953 + 0.7131269 * decay, 0), decay_wood)) %>%
+    left_join(., data$wood_density, by = c("species", "decay_class")) %>%
     rowwise() %>%
     mutate(volume_snag = E_VOL_AB_HmDm_HT.f(Hm=1.3, Dm=(dbh_mm * 0.1), 
                                             mHt = (log(dbh_mm * 0.1)-1.08261)^2/0.275541, 
@@ -277,13 +304,7 @@ calculate_parameters <- function(data){
   
   # recent disturbance
   
-  parameters$disturbance_recent <- data$tree %>% 
-    filter(!onplot %in% c(0, 99), 
-           growth %in% c(1,-1,99)) %>%              
-    inner_join(., tbl(KELuser, 'species_fk') %>% select(species = id, sp_group_dist), by = "species", copy = TRUE) %>%
-    inner_join(., tbl(KELuser, 'dist_group'), by = c("country", "foresttype", "location", "sp_group_dist"), copy = TRUE) %>% 
-    inner_join(., tbl(KELuser, 'dist_param') %>% select(dist_param = id, Tdbh_mm = dbh_mm, dbh_ca_f), by = "dist_param", copy = TRUE) %>% 
-    filter(dbh_mm >= Tdbh_mm) %>%
+  parameters$disturbance_recent <- data$recent_dist %>% 
     rowwise() %>% 
     mutate(ca = eval(parse(text = dbh_ca_f))) %>%
     group_by(plot_id) %>%
@@ -314,9 +335,7 @@ calculate_parameters <- function(data){
            disturbance_max_30y_year = median(year[ms30 == disturbance_max_30y_severity]),
            disturbance_1965_severity = mean(kde[year >= 1965 & kde > 15]),
            disturbance_1965_severity = ifelse(disturbance_1965_severity %in% "NaN", NA, disturbance_1965_severity)) %>%
-    select(plot_id, disturbance_year, disturbance_severity, disturbance_over_15ca, disturbance_severity_mean,
-           disturbance_first_year, disturbance_first_severity, disturbance_last_year, disturbance_last_severity,
-           disturbance_max_30y_year, disturbance_max_30y_severity, disturbance_1965_severity) %>%
+    select(-year, -id, -kde, -ms30, -ca_per) %>%
     filter(row_number() == 1)
   
   parameters$disturbance_index <- data$dist_plot_event %>%
@@ -352,6 +371,8 @@ calculate_parameters <- function(data){
   
   # volume and biomass of laying deadwood
   
+  ## transects
+    
   parameters$volume_dead_lying_decay <- data$deadwood %>%
     filter(!decay %in% 99) %>%
     group_by(plot_id, decay) %>%
@@ -372,14 +393,29 @@ calculate_parameters <- function(data){
     group_by(plot_id) %>%
     summarise(biomass_dead_lying = sum(biomass))
   
+  ## biodiversity
+  
+  parameters$volume_dead_tree_lying_decay <- data$deadwood_tree %>%
+    filter(!decay %in% 99) %>%
+    group_by(plot_id, decay) %>%
+    summarise(volume_dead_tree_lying_decay = sum(volume_m3) * 10000 / min(plotsize)) %>%
+    mutate(decay = paste0("volume_dead_tree_lying_decay", decay)) %>%
+    spread(decay, volume_dead_tree_lying_decay, fill = 0)
+  
+  parameters$volume_dead_tree_lying <- data$deadwood_tree %>%
+    group_by(plot_id) %>%
+    summarise(volume_dead_tree_lying = sum(volume_m3) * 10000 / min(plotsize))
+  
+  parameters$biomass_dead_tree_lying <- data$deadwood_tree %>%
+    filter(!decay %in% 99 & !species %in% "99") %>%
+    left_join(., data$wood_density, by = c("species", "decay" = "decay_class")) %>%
+    mutate(biomass = volume_m3 * (density_gCm3 * relative_density * 1000)) %>%
+    group_by(plot_id) %>%
+    summarise(biomass_dead_tree_lying = sum(biomass) * 10000 / min(plotsize))
+  
   # age parameters
   
   parameters$age_parameters <- data$core %>% 
-    filter(treetype %in% "0" & onplot %in% c(1, 2) | treetype %in% c("m", "x"),    
-           growth %in% 1,
-           !dbh_mm < 100,
-           !corestatus %in% c(2, 3)) %>% 
-    inner_join(., data$ring, by = "core_id") %>%
     filter(missing_years <= 20 | missing_years %in% NA) %>%
     group_by(date, plotid, treeid, subcore) %>%                            
     summarise(age = sum(n(), min(missing_years), na.rm = T)) %>%
@@ -436,7 +472,6 @@ calculate_parameters <- function(data){
   # canopy openness
   
   parameters$openness <- data$canopy_analysis %>%
-    filter(parameter %in% "openness") %>%
     group_by(plot_id) %>%
     summarise(openness_mean = mean(value),
               openness_gini = ineq(value, type = "Gini")) %>%
@@ -477,6 +512,9 @@ collect_data <- function(data){
     full_join(., data$volume_dead_lying_decay, by = "plot_id") %>%
     full_join(., data$volume_dead_lying, by = "plot_id") %>%
     full_join(., data$biomass_dead_lying, by = "plot_id") %>%
+    full_join(., data$volume_dead_tree_lying_decay, by = "plot_id") %>%
+    full_join(., data$volume_dead_tree_lying, by = "plot_id") %>%
+    full_join(., data$biomass_dead_tree_lying, by = "plot_id") %>%
     full_join(., data$age_parameters, by = "plot_id") %>%
     full_join(., data$regeneration_htclass, by = "plot_id") %>%
     full_join(., data$regeneration_250_dbh_min, by = "plot_id") %>%
