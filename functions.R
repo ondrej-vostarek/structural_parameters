@@ -246,7 +246,7 @@ calculate_parameters <- function(data){
               biomass_aboveground_100 = sum(biomass_aboveground[dbh_mm >= 100], na.rm = T),
               biomass_underground_60 = sum(biomass_underground[dbh_mm >= 60], na.rm = T),
               biomass_underground_100 = sum(biomass_underground[dbh_mm >= 100], na.rm = T)) %>%
-    mutate_at(vars(-plot_id), funs(.*10000/plotsize)) %>%
+    mutate_at(vars(-plot_id, -plotsize), funs(.*10000/plotsize)) %>%
     mutate(volume_live_60 = ifelse(volume_live_60 %in% 0, NA, volume_live_60),
            volume_live_100 = ifelse(volume_live_100 %in% 0, NA, volume_live_100),
            biomass_aboveground_60 = ifelse(biomass_aboveground_60 %in% 0, NA, biomass_aboveground_60),
