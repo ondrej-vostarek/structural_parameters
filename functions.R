@@ -54,8 +54,9 @@ get_data <- function(plot.id){
     select(plot_id, species, dbh_mm, decay)
 
   deadwood_tree <- tbl(KELuser, "deadwood_tree") %>%
-    filter(volume_m3 > 0) %>%
     inner_join(., plot, by = "plot_id") %>%
+    filter(volume_m3 > 0,
+           !is.na(plotsize)) %>%
     select(plot_id, plotsize, species, decay, volume_m3)
 
   core <- tbl(KELuser, "core") %>% 
@@ -69,6 +70,7 @@ get_data <- function(plot.id){
 
   regeneration <- tbl(KELuser, "regeneration") %>% 
     inner_join(., plot, by = "plot_id") %>%
+    filter(!is.na(plotsize)) %>%
     select(plot_id, foresttype, plotsize, htclass, count)
   
   regeneration_subplot <- tbl(KELuser, "regeneration_subplot") %>% 
@@ -77,7 +79,8 @@ get_data <- function(plot.id){
 
   recent_dist <- tree %>% 
     filter(!onplot %in% c(0, 99), 
-           growth %in% c(1,-1,99)) %>%              
+           !growth %in% 0,
+           decay %in% c(-1:3)) %>%              
     inner_join(., 
                tbl(KELuser, 'species_fk') %>% select(species = id, sp_group_dist), 
                by = "species") %>%
@@ -145,7 +148,7 @@ calculate_parameters <- function(data){
   plot.key <- plot.new %>% mutate(id = row_number()) %>% select(id, plotid) %>% deframe()
   
   plot.nearest <- reshape2::melt(as.matrix(p), varnames = c("plotid", "second_plot"), value.name = "nearest_plot") %>%
-    filter(!nearest_plot %in% NA) %>%
+    filter(!nearest_plot %in% c("NaN", NA)) %>%
     mutate(plotid = plot.key[plotid],
            second_plot = plot.key[second_plot]) %>%
     inner_join(., plot.new[ , c("plot_id", "plotid", "foresttype")], by = "plotid") %>%
@@ -167,7 +170,8 @@ calculate_parameters <- function(data){
   # tree parameters
   
   parameters$tree_parameters <- data$tree %>%
-    filter(!onplot %in% c(0, 99)) %>%
+    filter(!onplot %in% c(0, 99), 
+           !is.na(dbh_mm)) %>%
     mutate(ba = pi * dbh_mm ^ 2 / 4 / 1000000) %>%
     group_by(plot_id) %>%
     summarise(plotsize = first(plotsize),
@@ -176,29 +180,29 @@ calculate_parameters <- function(data){
               n_trees_dead_500 = length(treeid[dbh_mm >= 500 & status %in% c(11:23)]),
               n_trees_dead_700 = length(treeid[dbh_mm >= 700 & status %in% c(11:23)]),
               n_trees_dead_60 = length(treeid[dbh_mm >= 60 & status %in% c(11:23)]),
-              dbh_quadrmean_dead_60 = sqrt(mean(dbh_mm[dbh_mm >= 60 & status %in% c(11:23)]^2, na.rm = T)),
+              dbh_quadrmean_dead_60 = sqrt(mean(dbh_mm[dbh_mm >= 60 & status %in% c(11:23)]^2)),
               dbh_quadrmean_dead_60 = ifelse(dbh_quadrmean_dead_60 %in% "NaN", NA, dbh_quadrmean_dead_60),
-              ba_dead_60 = sum(ba[dbh_mm >= 60 & status %in% c(11:23)], na.rm = T),
+              ba_dead_60 = sum(ba[dbh_mm >= 60 & status %in% c(11:23)]),
               n_trees_dead_100 = length(treeid[dbh_mm >= 100 & status %in% c(11:23)]),
-              dbh_quadrmean_dead_100 = sqrt(mean(dbh_mm[dbh_mm >= 100 & status %in% c(11:23)]^2, na.rm = T)),
+              dbh_quadrmean_dead_100 = sqrt(mean(dbh_mm[dbh_mm >= 100 & status %in% c(11:23)]^2)),
               dbh_quadrmean_dead_100 = ifelse(dbh_quadrmean_dead_100 %in% "NaN", NA, dbh_quadrmean_dead_100),
-              ba_dead_100 = sum(ba[dbh_mm >= 100 & status %in% c(11:23)], na.rm = T),
+              ba_dead_100 = sum(ba[dbh_mm >= 100 & status %in% c(11:23)]),
               n_trees_live_60 = length(treeid[dbh_mm >= 60 & status %in% c(1:4)]),
-              dbh_quadrmean_live_60 = sqrt(mean(dbh_mm[dbh_mm >= 60 & status %in% c(1:4)]^2, na.rm = T)),
+              dbh_quadrmean_live_60 = sqrt(mean(dbh_mm[dbh_mm >= 60 & status %in% c(1:4)]^2)),
               dbh_quadrmean_live_60 = ifelse(dbh_quadrmean_live_60 %in% "NaN", NA, dbh_quadrmean_live_60),
-              dbh_mean_live_60 = mean(dbh_mm[dbh_mm >= 60 & status %in% c(1:4)], na.rm = T),
+              dbh_mean_live_60 = mean(dbh_mm[dbh_mm >= 60 & status %in% c(1:4)]),
               dbh_mean_live_60 = ifelse(dbh_mean_live_60 %in% "NaN", NA, dbh_mean_live_60),
               dbh_gini_live_60 = ineq(dbh_mm[dbh_mm >= 60 & status %in% c(1:4)], type = "Gini"),
               dbh_gini_live_60 = ifelse(dbh_gini_live_60 %in% "NaN", NA, dbh_gini_live_60),
-              ba_live_60 = sum(ba[dbh_mm >= 60 & status %in% c(1:4)], na.rm = T),
+              ba_live_60 = sum(ba[dbh_mm >= 60 & status %in% c(1:4)]),
               n_trees_live_100 = length(treeid[dbh_mm >= 100 & status %in% c(1:4)]),
-              dbh_quadrmean_live_100 = sqrt(mean(dbh_mm[dbh_mm >= 100 & status %in% c(1:4)]^2, na.rm = T)),
+              dbh_quadrmean_live_100 = sqrt(mean(dbh_mm[dbh_mm >= 100 & status %in% c(1:4)]^2)),
               dbh_quadrmean_live_100 = ifelse(dbh_quadrmean_live_100 %in% "NaN", NA, dbh_quadrmean_live_100),
-              dbh_mean_live_100 = mean(dbh_mm[dbh_mm >= 100 & status %in% c(1:4)], na.rm = T),
+              dbh_mean_live_100 = mean(dbh_mm[dbh_mm >= 100 & status %in% c(1:4)]),
               dbh_mean_live_100 = ifelse(dbh_mean_live_100 %in% "NaN", NA, dbh_mean_live_100),
               dbh_gini_live_100 = ineq(dbh_mm[dbh_mm >= 100 & status %in% c(1:4)], type = "Gini"),
               dbh_gini_live_100 = ifelse(dbh_gini_live_100 %in% "NaN", NA, dbh_gini_live_100),
-              ba_live_100 = sum(ba[dbh_mm >= 100 & status %in% c(1:4)], na.rm = T)) %>%
+              ba_live_100 = sum(ba[dbh_mm >= 100 & status %in% c(1:4)])) %>%
     mutate(ba_dead_60 = ifelse(ba_dead_60 %in% 0 , NA, ba_dead_60),
            ba_dead_100 = ifelse(ba_dead_100 %in% 0, NA, ba_dead_100),
            ba_live_60 = ifelse(ba_live_60 %in% 0, NA, ba_live_60),
@@ -209,10 +213,14 @@ calculate_parameters <- function(data){
     mutate_at(vars(dbh_gini_live_60, dbh_gini_live_100), funs(round(., 2))) %>%
     select(-plotsize)
   
-  parameters$height_max <- data$tree %>% group_by(plot_id) %>% summarise(height_max = max(height_m, na.rm = T))
+  parameters$height_max <- data$tree %>% 
+    group_by(plot_id) %>% 
+    summarise(height_max = max(height_m, na.rm = T)) %>%
+    mutate(height_max = ifelse(height_max %in% -Inf, NA, height_max))
   
   parameters$dominant_species <- data$tree %>%
     filter(!onplot %in% c(0, 99),
+           !is.na(dbh_mm),
            status %in% c(1:4)) %>%
     mutate(ba = pi * dbh_mm ^ 2 / 4 / 1000000) %>%
     group_by(plot_id, species) %>%
@@ -226,7 +234,9 @@ calculate_parameters <- function(data){
   
   parameters$biomass_volume <- data$tree %>%
     filter(!onplot %in% c(0, 99),
-           status %in% c(1:4)) %>%
+           status %in% c(1:4),
+           !is.na(dbh_mm),
+           !species %in% "99") %>%
     left_join(., data$wood_density %>% distinct(., species, density_gCm3), by = "species") %>%
     left_join(., data$biomass_eq, by = "species") %>%
     left_join(., parameters$tree_parameters %>% select(plot_id, ba_live_60), by = "plot_id") %>%
@@ -240,19 +250,13 @@ calculate_parameters <- function(data){
            biomass_underground = RM) %>%
     group_by(plot_id) %>%
     summarise(plotsize = first(plotsize),
-              volume_live_60 = sum(volume_live[dbh_mm >= 60], na.rm = T),
-              volume_live_100 = sum(volume_live[dbh_mm >= 100], na.rm = T),
-              biomass_aboveground_60 = sum(biomass_aboveground[dbh_mm >= 60], na.rm = T),
-              biomass_aboveground_100 = sum(biomass_aboveground[dbh_mm >= 100], na.rm = T),
-              biomass_underground_60 = sum(biomass_underground[dbh_mm >= 60], na.rm = T),
-              biomass_underground_100 = sum(biomass_underground[dbh_mm >= 100], na.rm = T)) %>%
+              volume_live_60 = sum(volume_live[dbh_mm >= 60]),
+              volume_live_100 = sum(volume_live[dbh_mm >= 100]),
+              biomass_aboveground_60 = sum(biomass_aboveground[dbh_mm >= 60]),
+              biomass_aboveground_100 = sum(biomass_aboveground[dbh_mm >= 100]),
+              biomass_underground_60 = sum(biomass_underground[dbh_mm >= 60]),
+              biomass_underground_100 = sum(biomass_underground[dbh_mm >= 100])) %>%
     mutate_at(vars(-plot_id, -plotsize), funs(.*10000/plotsize)) %>%
-    mutate(volume_live_60 = ifelse(volume_live_60 %in% 0, NA, volume_live_60),
-           volume_live_100 = ifelse(volume_live_100 %in% 0, NA, volume_live_100),
-           biomass_aboveground_60 = ifelse(biomass_aboveground_60 %in% 0, NA, biomass_aboveground_60),
-           biomass_aboveground_100 = ifelse(biomass_aboveground_100 %in% 0, NA, biomass_aboveground_100),
-           biomass_underground_60 = ifelse(biomass_underground_60 %in% 0, NA, biomass_underground_60),
-           biomass_underground_100 = ifelse(biomass_underground_100 %in% 0, NA, biomass_underground_100)) %>%
     select(-plotsize)
 
   # volume and biomass of dead standing trees
@@ -442,11 +446,8 @@ calculate_parameters <- function(data){
     mutate(plotsize = ifelse(plotsize > 1000, 1000, plotsize)) %>%
     group_by(plot_id, htclass) %>%
     summarise(regeneration_htclass = sum(count) * 10000 / min(plotsize)) %>%
-    mutate(htclass = ifelse(htclass %in% 1, "regeneration_50_130", "regeneration_130_250"),
-           regeneration_htclass = ifelse(regeneration_htclass %in% NA, -1, regeneration_htclass)) %>%
-    spread(htclass, regeneration_htclass, fill = 0) %>%
-    mutate(regeneration_130_250 = ifelse(regeneration_130_250 %in% -1, NA, regeneration_130_250),
-           regeneration_50_130 = ifelse(regeneration_50_130 %in% -1, NA, regeneration_50_130))
+    mutate(htclass = ifelse(htclass %in% 1, "regeneration_50_130", "regeneration_130_250")) %>%
+    spread(htclass, regeneration_htclass, fill = 0)
   
   parameters$regeneration_250_dbh_min <- data$regeneration %>%
     filter(htclass %in% 3) %>%
