@@ -405,7 +405,7 @@ calculate_parameters <- function(data, dataType){
               group_by(plot_id, decay) %>%
               summarise(volume_dead_lying_decay = round(((pi ^ 2 * sum((dbh_mm * 0.001) ^ 2)) / 800) * 10000, 0)) %>%
               mutate(decay = paste0("volume_dead_lying_decay", decay)) %>%
-              spread(decay, volume_dead_lying_decay, fill = 0) %>%
+              spread(decay, volume_dead_lying_decay, fill = 0)
             
             parameters$volume_dead_lying <- data$deadwood %>%
               group_by(plot_id) %>%
