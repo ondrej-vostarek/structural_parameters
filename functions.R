@@ -287,14 +287,14 @@ calculate_parameters <- function(data, dataType){
             decayht == 4 ~ 45,
             decayht == 5 ~ 55)) %>%
           rowwise() %>%
-          mutate(volume_snag = E_VOL_AB_HmDm_HT.f(Hm=1.3, Dm=(dbh_mm * 0.1), 
-                                                  mHt = (log(dbh_mm * 0.1)-1.08261)^2/0.275541, 
+          mutate(volume_snag = E_VOL_AB_HmDm_HT.f(Hm=1.3, Dm=(dbh_mm * 0.1),
+                                                  mHt = (log(dbh_mm * 0.1)-1.08261)^2/0.275541,
                                                   sHt = 0, par.lme = SK.par.lme, A=0, B=decayht, iDH = "H")$E_VOL) %>%
           group_by(plot_id) %>%
           summarise(volume_dead_standing_60 = sum(volume_snag[dbh_mm >= 60]) * 10000 / min(plotsize),
                     volume_dead_standing_100 = sum(volume_snag[dbh_mm >= 100]) * 10000 / min(plotsize)) %>%
           mutate_at(vars(-plot_id), funs(round(., 0)))
-        
+
         parameters$biomass_dead_standing <- data$tree %>%
           filter(!onplot %in% c(0, 99),
                  status %in% c(11:23),
@@ -312,8 +312,8 @@ calculate_parameters <- function(data, dataType){
             decay_class = ifelse(decay_wood %in% 99, round(0.2924953 + 0.7131269 * decay, 0), decay_wood)) %>%
           left_join(., data$wood_density, by = c("species", "decay_class")) %>%
           rowwise() %>%
-          mutate(volume_snag = E_VOL_AB_HmDm_HT.f(Hm=1.3, Dm=(dbh_mm * 0.1), 
-                                                  mHt = (log(dbh_mm * 0.1)-1.08261)^2/0.275541, 
+          mutate(volume_snag = E_VOL_AB_HmDm_HT.f(Hm=1.3, Dm=(dbh_mm * 0.1),
+                                                  mHt = (log(dbh_mm * 0.1)-1.08261)^2/0.275541,
                                                   sHt = 0, par.lme = SK.par.lme, A=0, B=decayht, iDH = "H")$E_VOL,
                  biomass = volume_snag * (density_gCm3 * relative_density * 1000)) %>%
           group_by(plot_id) %>%
@@ -323,8 +323,8 @@ calculate_parameters <- function(data, dataType){
         
         # recent disturbance ------------------------------------------------------
         
-        parameters$disturbance_recent <- data$recent_dist %>% 
-          rowwise() %>% 
+        parameters$disturbance_recent <- data$recent_dist %>%
+          rowwise() %>%
           mutate(ca = eval(parse(text = dbh_ca_f))) %>%
           group_by(plot_id) %>%
           summarise(disTot = sum(ca[decay %in% c(-1:3)]),
@@ -488,7 +488,10 @@ calculate_parameters <- function(data, dataType){
                   parameters$regeneration_250_dbh_min <- data$regeneration %>%
                     filter(htclass %in% 3) %>%
                     mutate(plotsize = ifelse(plotsize > 1000, 1000, plotsize),
-                           foresttype = ifelse(foresttype %in% "spruce", "regeneration_250_100", "regeneration_250_60")) %>%
+                           foresttype = case_when(
+                             foresttype %in% "spruce" ~ "regeneration_250_100", 
+                             foresttype %in% "beech" ~ "regeneration_250_60",
+                             foresttype %in% "fraxinus" ~ "regeneration_250_50")) %>%
                     group_by(plot_id, foresttype) %>%
                     summarise(regeneration_250_dbh_min = round(sum(count) * 10000 / min(plotsize), 0)) %>%
                     spread(foresttype, regeneration_250_dbh_min)
