@@ -15,8 +15,9 @@ data.list <- get_data(plot.id)
 
 # parameters --------------------------------------------------------------
 
-data.param <- calculate_parameters(data = data.list, dataType = c("plot", "tree", "disturbance", "deadwood", "deadwood_tree", "core",
-                                                                  "regeneration", "regeneration_subplot", "canopy", "temperature"))
+data.param <- calculate_parameters(data = data.list, 
+                                   dataType = c("plot", "tree", "disturbance", "deadwood", "deadwood_tree", "core",
+                                                "regeneration", "regeneration_subplot", "canopy", "temperature"))
 
 # collect everything ------------------------------------------------------
 

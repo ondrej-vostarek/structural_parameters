@@ -53,11 +53,15 @@ get_data <- function(plot.id){
     inner_join(., plot, by = 'plot_id') %>%
     select(plot_id, species, dbh_mm, decay)
 
-  deadwood_tree <- tbl(KELuser, "deadwood_tree") %>%
+  deadwood_tree <- tbl(KELuser, "deadwood_position") %>%
+    filter(!is.na(diameter_mm)) %>%
+    group_by(deadwood_id) %>%
+    summarise(diam_mean = mean(diameter_mm)) %>%
+    right_join(., tbl(KELuser, "deadwood_tree"), by = c("deadwood_id" = "id")) %>%
     inner_join(., plot, by = "plot_id") %>%
     filter(volume_m3 > 0,
            !is.na(plotsize)) %>%
-    select(plot_id, plotsize, species, decay, volume_m3)
+    select(plot_id, plotsize, species, decay, volume_m3, diam_mean)
 
   core <- tbl(KELuser, "core") %>% 
     inner_join(., tree, by = 'tree_id') %>%
@@ -182,7 +186,8 @@ calculate_parameters <- function(data, dataType){
         parameters$tree_parameters <- data$tree %>%
           filter(!onplot %in% c(0, 99), 
                  !is.na(dbh_mm)) %>%
-          mutate(ba = pi * dbh_mm ^ 2 / 4 / 1000000) %>%
+          mutate(ba = pi * dbh_mm ^ 2 / 4 / 1000000,
+                 decay = ifelse(decay %in% 99, NA, decay)) %>%
           group_by(plot_id) %>%
           summarise(plotsize = first(plotsize),
                     n_trees_live_500 = length(treeid[dbh_mm >= 500 & status %in% c(1:4)]),
@@ -212,7 +217,17 @@ calculate_parameters <- function(data, dataType){
                     dbh_mean_live_100 = ifelse(dbh_mean_live_100 %in% "NaN", NA, dbh_mean_live_100),
                     dbh_gini_live_100 = ineq(dbh_mm[dbh_mm >= 100 & status %in% c(1:4)], type = "Gini"),
                     dbh_gini_live_100 = ifelse(dbh_gini_live_100 %in% "NaN", NA, dbh_gini_live_100),
-                    ba_live_100 = sum(ba[dbh_mm >= 100 & status %in% c(1:4)])) %>%
+                    ba_live_100 = sum(ba[dbh_mm >= 100 & status %in% c(1:4)]),
+                    dbh_div_live_60 = sd(dbh_mm[dbh_mm >= 60 & status %in% c(1:4)]),
+                    dbh_div_live_100 = sd(dbh_mm[dbh_mm >= 100 & status %in% c(1:4)]),
+                    dbh_max_live_60 = max(dbh_mm[dbh_mm >= 60 & status %in% c(1:4)]),
+                    dbh_max_live_60 = ifelse(dbh_max_live_60 %in% -Inf, NA, dbh_max_live_60),
+                    dbh_max_live_100 = max(dbh_mm[dbh_mm >= 100 & status %in% c(1:4)]),
+                    dbh_max_live_100 = ifelse(dbh_max_live_100 %in% -Inf, NA, dbh_max_live_100),
+                    decay_div_standing_60 = sd(decay[dbh_mm >= 60 & status %in% c(11:23)], na.rm = T),
+                    decay_div_standing_100 = sd(decay[dbh_mm >= 100 & status %in% c(11:23)], na.rm = T),
+                    dbh_div_dead_60 = sd(dbh_mm[dbh_mm >= 60 & status %in% c(11:23)]),
+                    dbh_div_dead_100 = sd(dbh_mm[dbh_mm >= 100 & status %in% c(11:23)])) %>%
           mutate(ba_dead_60 = ifelse(ba_dead_60 %in% 0 , NA, ba_dead_60),
                  ba_dead_100 = ifelse(ba_dead_100 %in% 0, NA, ba_dead_100),
                  ba_live_60 = ifelse(ba_live_60 %in% 0, NA, ba_live_60),
@@ -220,8 +235,12 @@ calculate_parameters <- function(data, dataType){
           mutate_at(vars(n_trees_live_500, n_trees_live_700, n_trees_dead_500, n_trees_dead_700, n_trees_dead_60,
                          ba_dead_60, n_trees_dead_100, ba_dead_100, n_trees_live_60, ba_live_60, n_trees_live_100, ba_live_100), 
                     funs(.*10000/plotsize)) %>%
-          mutate_at(vars(dbh_gini_live_60, dbh_gini_live_100), funs(round(., 2))) %>%
-          mutate_at(vars(-dbh_gini_live_60, -dbh_gini_live_100), funs(round(., 0))) %>%
+          mutate_at(vars(dbh_gini_live_60, dbh_gini_live_100, dbh_div_live_60, dbh_div_live_100, dbh_div_dead_60,
+                         dbh_div_dead_100, decay_div_standing_60, decay_div_standing_100),
+                    funs(round(., 2))) %>%
+          mutate_at(vars(-dbh_gini_live_60, -dbh_gini_live_100, -dbh_div_live_60, -dbh_div_live_100, -dbh_div_dead_60,
+                         -dbh_div_dead_100, -decay_div_standing_60, -decay_div_standing_100),
+                    funs(round(., 0))) %>%
           select(-plotsize)
         
         parameters$height_max <- data$tree %>% 
@@ -420,6 +439,13 @@ calculate_parameters <- function(data, dataType){
               group_by(plot_id) %>%
               summarise(biomass_dead_lying = round(sum(biomass), 0))
             
+            parameters$div_dead_lying <- data$deadwood %>%
+              mutate(decay = ifelse(decay %in% 99, NA, decay)) %>%
+              group_by(plot_id) %>%
+              summarise(decay_div_lying = round(sd(decay, na.rm = T), 2),
+                        diam_div_lying = round(sd(dbh_mm), 2))
+              
+            
           } else {
             
             if(i == "deadwood_tree"){
@@ -444,6 +470,12 @@ calculate_parameters <- function(data, dataType){
                 group_by(plot_id) %>%
                 summarise(biomass_dead_tree_lying = round(sum(biomass) * 10000 / min(plotsize), 0))
               
+              parameters$div_dead_tree_lying <- data$deadwood_tree %>%
+                mutate(decay = ifelse(decay %in% 99, NA, decay)) %>%
+                group_by(plot_id) %>%
+                summarise(decay_div_tree_lying = round(sd(decay, na.rm = T), 2),
+                          diam_div_tree_lying = round(sd(diam_mean, na.rm = T), 2))
+              
             } else {
               
               if(i == "core"){
@@ -464,6 +496,7 @@ calculate_parameters <- function(data, dataType){
                   group_by(plot_id) %>%
                   arrange(desc(age)) %>%
                   summarise(age_mean = mean(age),
+                            age_max = max(age),
                             age_90quantile = quantile(age, 0.90),
                             age_5oldest = mean(age[1:5]),
                             age_gini = round(ineq(age, type = "Gini"), 2),
@@ -524,8 +557,9 @@ calculate_parameters <- function(data, dataType){
                       parameters$openness <- data$canopy_analysis %>%
                         group_by(plot_id) %>%
                         summarise(openness_mean = mean(value),
-                                  openness_gini = ineq(value, type = "Gini")) %>%
-                        mutate_at(vars(openness_mean, openness_gini), funs(round(., 2)))
+                                  openness_gini = ineq(value, type = "Gini"),
+                                  patchiness = sd(value)) %>%
+                        mutate_at(vars(openness_mean, openness_gini, patchiness), funs(round(., 2)))
                       
                       
                     } else {
