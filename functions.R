@@ -110,6 +110,33 @@ get_data <- function(plot.id){
   wood_density <- tbl(KELuser, "wood_density")
   
   biomass_eq <- tbl(KELuser, "biomass_eq")
+  
+  mort.plotid <- tbl(KELuser, "plot") %>% filter(id %in% plot.id) %>% pull(plotid)
+  
+  mort_plot <- tbl(KELuser, "plot") %>%
+    filter(plotid %in% mort.plotid,
+           census %in% c(1:4), 
+           plottype %in% c(3, 4)) %>%
+    collect() %>%
+    group_by(plotid) %>%
+    arrange(date) %>%
+    mutate(plotsize = case_when(
+      census %in% 1 & lead(census, 1) == 4 ~ lead(plotsize, 1),
+      census %in% 3 ~ lag(plotsize, 1),
+      TRUE ~ plotsize),
+      plotsize = case_when(
+        plotsize %in% 500 ~ 12.62,
+        plotsize %in% 1000 ~ 17.84,
+        plotsize %in% 1500 ~ 21.85),
+      dbh_min = max(dbh_min), 
+      interval = case_when(
+        row_number() == 1 ~ NA_integer_,
+        row_number() == 2 ~ date - lag(date, 1),
+        row_number() == 3 & (date - lag(date, 1)) >= 4 ~ date - lag(date, 1),
+        row_number() == 3 & (date - lag(date, 1)) < 4 ~ date - lag(date, 2)),
+      interval = ifelse(interval %in% NA, max(interval, na.rm = T), interval)) %>%
+    filter(interval %in% c(4:10)) %>%
+    select(plot_id = id, date, plotid, plotsize, dbh_min)
     
   data <- list()
   
@@ -125,6 +152,7 @@ get_data <- function(plot.id){
   data$canopy_analysis <- collect(canopy_analysis)
   data$wood_density <- collect(wood_density)
   data$biomass_eq <- collect(biomass_eq)
+  data$mort_plot <- mort_plot
   
   return(data) 
   
@@ -571,7 +599,7 @@ calculate_parameters <- function(data, dataType){
                         load("C:/Users/Ondrej_Vostarek/Desktop/MVP/DB/data/temperatures/model_annual.rda")
                         load("C:/Users/Ondrej_Vostarek/Desktop/MVP/DB/data/temperatures/model_vegetation.rda")
                         
-                        plots <- data.list$plot %>% 
+                        plots <- data$plot %>% 
                           select(plot_id, longitude = lng, latitude = lat, altitude = altitude_m, country, location)
                         
                         plots$temperature_annual <- stats::predict(model_annual,plots)^2-100
@@ -584,8 +612,66 @@ calculate_parameters <- function(data, dataType){
                         
                       } else {
                         
-                        stop("Unknown dataType, possible values are: 'plot', 'tree', 'disturbance', 'deadwood', 'deadwood_tree', 'core', 'regeneration', 'regeneration_subplot', 'canopy', 'temperature'.")
-                        
+                        if(i == "mortality"){
+                          
+                          # mortality ---------------------------------------------------------------
+                          
+                          mort.plot.id <- data$mort_plot %>% pull(plot_id)
+                          
+                          parameters$mortality <- tbl(KELuser, "tree_quality") %>%
+                            filter(quality %in% c(6, 11)) %>%
+                            right_join(., tbl(KELuser, "tree") %>% filter(plot_id %in% mort.plot.id, census %in% 0, !is.na(x_m)), 
+                                       by = c("tree_id" = "id")) %>%
+                            inner_join(., tbl(KELuser, "plot"), by = c("plot_id" = "id")) %>%
+                            mutate(n = ifelse(is.na(quality), NA , 1),
+                                   quality = paste0("q", quality)) %>%
+                            select(plot_id, date, treeid, x_m, y_m, onplot, treetype, status, dbh_mm, quality, n) %>%
+                            collect() %>%
+                            spread(., quality, n) %>%
+                            group_by(treeid) %>%
+                            arrange(desc(date)) %>%
+                            mutate(status = ifelse(status %in% c(1:4), 1, 0),
+                                   q6 = ifelse(is.na(q6), max(q6, na.rm = T) + 1, q6),
+                                   q11 = ifelse(is.na(q11), max(q11, na.rm = T) + 1, q11),
+                                   status = case_when(
+                                     row_number() == 2 & status < lag(status, 1) ~ lag(status, 1),
+                                     row_number() == 3 & status < lag(status, 1) ~ lag(status, 1),
+                                     TRUE ~ status),
+                                   onplot = ifelse(q6 %in% 2, lag(onplot, 1), onplot),
+                                   treetype = ifelse(q11 %in% 2, lag(treetype, 1), treetype)) %>%
+                            filter(status %in% 1,
+                                   treetype %in% "0",
+                                   !onplot %in% c(0, 99)) %>% 
+                            mutate(dbh_mm = ifelse(is.na(dbh_mm), 0, dbh_mm),
+                                   distance_m = sqrt(abs(x_m^2 + y_m^2)) + dbh_mm/1000/2) %>%
+                            inner_join(., data$mort_plot, by = c("plot_id", "date")) %>%
+                            filter(dbh_mm >= dbh_min,
+                                   distance_m <= plotsize) %>%
+                            group_by(plot_id, date, plotid) %>%
+                            summarise(n = n()) %>% 
+                            group_by(plotid) %>%
+                            filter(n() > 1) %>%
+                            arrange(date) %>%
+                            mutate(int = case_when(
+                              row_number() == 1 ~ NA_integer_,
+                              row_number() == 2 ~ date - lag(date, 1),
+                              row_number() == 3 & (date - lag(date, 1)) >= 4 ~ date - lag(date, 1),
+                              row_number() == 3 & (date - lag(date, 1)) < 4 ~ date - lag(date, 2)),
+                              mortality = case_when(
+                                row_number() == 1 ~ NA_real_,
+                                row_number() == 2 ~ 1 - ((n/lag(n, 1))^(1/int)),
+                                row_number() == 3 & (date - lag(date, 1)) >= 4 ~ 1 - ((n/lag(n, 1))^(1/int)),
+                                row_number() == 3 & (date - lag(date, 1)) < 4 ~ 1 - ((n/lag(n, 2))^(1/int))),
+                              mortality = round(mortality * 100, 2)) %>%
+                            ungroup() %>%
+                            filter(!is.na(mortality) & plot_id %in% plot.id) %>%
+                            select(plot_id, mortality)
+                          
+                        } else {
+                          
+                          stop("Unknown dataType, possible values are: 'plot', 'tree', 'disturbance', 'deadwood', 'deadwood_tree', 'core', 'regeneration', 'regeneration_subplot', 'canopy', 'temperature', 'mortality'.")
+                          
+                        }
                       }
                     }
                   }
