@@ -619,31 +619,36 @@ calculate_parameters <- function(data, dataType){
                           mort.plot.id <- data$mort_plot %>% pull(plot_id)
                           
                           parameters$mortality <- tbl(KELuser, "tree_quality") %>%
-                            filter(quality %in% c(6, 11)) %>%
-                            right_join(., tbl(KELuser, "tree") %>% filter(plot_id %in% mort.plot.id, census %in% 0, !is.na(x_m)), 
+                            filter(quality %in% c(6, 7, 11)) %>%
+                            right_join(., tbl(KELuser, "tree") %>% filter(plot_id %in% mort.plot.id & !is.na(x_m)), 
                                        by = c("tree_id" = "id")) %>%
                             inner_join(., tbl(KELuser, "plot"), by = c("plot_id" = "id")) %>%
-                            mutate(n = ifelse(is.na(quality), NA , 1),
+                            mutate(n = ifelse(is.na(quality), NA, 1),
                                    quality = paste0("q", quality)) %>%
-                            select(plot_id, date, treeid, x_m, y_m, onplot, treetype, status, dbh_mm, quality, n) %>%
+                            select(plot_id, date, treeid, census = census.x, x_m, y_m, onplot, treetype, status, dbh_mm, quality, n) %>%
                             collect() %>%
                             spread(., quality, n) %>%
                             group_by(treeid) %>%
                             arrange(desc(date)) %>%
                             mutate(status = ifelse(status %in% c(1:4), 1, 0),
+                                   census = ifelse(row_number() == 1 & (date - lead(date, 1)) < 4, lead(census, 1), census),
+                                   dbh_mm = ifelse(is.na(dbh_mm), min(dbh_mm, na.rm = T), dbh_mm),
                                    q6 = ifelse(is.na(q6), max(q6, na.rm = T) + 1, q6),
+                                   q7 = ifelse(is.na(q7), max(q7, na.rm = T) + 1, q7),
                                    q11 = ifelse(is.na(q11), max(q11, na.rm = T) + 1, q11),
                                    status = case_when(
                                      row_number() == 2 & status < lag(status, 1) ~ lag(status, 1),
                                      row_number() == 3 & status < lag(status, 1) ~ lag(status, 1),
                                      TRUE ~ status),
                                    onplot = ifelse(q6 %in% 2, lag(onplot, 1), onplot),
+                                   x_m = ifelse(q7 %in% 2, lag(x_m), x_m),
+                                   y_m = ifelse(q7 %in% 2, lag(y_m), y_m),
                                    treetype = ifelse(q11 %in% 2, lag(treetype, 1), treetype)) %>%
                             filter(status %in% 1,
+                                   census %in% 0,
                                    treetype %in% "0",
                                    !onplot %in% c(0, 99)) %>% 
-                            mutate(dbh_mm = ifelse(is.na(dbh_mm), 0, dbh_mm),
-                                   distance_m = sqrt(abs(x_m^2 + y_m^2)) + dbh_mm/1000/2) %>%
+                            mutate(distance_m = sqrt(abs(x_m^2 + y_m^2))) %>%
                             inner_join(., data$mort_plot, by = c("plot_id", "date")) %>%
                             filter(dbh_mm >= dbh_min,
                                    distance_m <= plotsize) %>%
