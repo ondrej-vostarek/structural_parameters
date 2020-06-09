@@ -648,7 +648,8 @@ calculate_parameters <- function(data, dataType){
                                    census %in% 0,
                                    treetype %in% "0",
                                    !onplot %in% c(0, 99)) %>% 
-                            mutate(distance_m = sqrt(abs(x_m^2 + y_m^2))) %>%
+                            mutate(distance_m = sqrt(abs(x_m^2 + y_m^2)),
+                                   distance_m = ifelse(row_number() != 1, lag(distance_m, 1), distance_m)) %>%
                             inner_join(., data$mort_plot, by = c("plot_id", "date")) %>%
                             filter(dbh_mm >= dbh_min,
                                    distance_m <= plotsize) %>%
