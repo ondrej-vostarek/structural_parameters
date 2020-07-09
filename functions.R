@@ -188,7 +188,8 @@ calculate_parameters <- function(data, dataType){
         filter(!nearest_plot %in% c("NaN", NA)) %>%
         mutate(plotid = plot.key[plotid],
                second_plot = plot.key[second_plot]) %>%
-        inner_join(., plot.new[ , c("plot_id", "plotid", "foresttype")], by = "plotid") %>%
+        distinct(., .keep_all = T) %>%
+        left_join(., plot.new[ , c("plot_id", "plotid", "foresttype")], by = "plotid") %>%
         group_by(plotid) %>%
         mutate(nearest_plot = ifelse(foresttype %in% "spruce",
                                      min(nearest_plot),
