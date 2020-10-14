@@ -453,14 +453,14 @@ calculate_parameters <- function(data, dataType){
               filter(!decay %in% 99 & dbh_mm >= 60) %>%
               group_by(plot_id, decay) %>%
               summarise(volume_dead_lying_decay = round(((pi ^ 2 * sum((dbh_mm * 0.001) ^ 2)) / 800) * 10000, 0)) %>%
-              mutate(decay = paste0("volume_dead_lying_decay_60", decay)) %>%
+              mutate(decay = paste0("volume_dead_lying_60_decay", decay)) %>%
               spread(decay, volume_dead_lying_decay, fill = 0)
             
             parameters$volume_dead_lying_decay_100 <- data$deadwood %>%
               filter(!decay %in% 99 & dbh_mm >= 100) %>%
               group_by(plot_id, decay) %>%
               summarise(volume_dead_lying_decay = round(((pi ^ 2 * sum((dbh_mm * 0.001) ^ 2)) / 800) * 10000, 0)) %>%
-              mutate(decay = paste0("volume_dead_lying_decay_100", decay)) %>%
+              mutate(decay = paste0("volume_dead_lying_100_decay", decay)) %>%
               spread(decay, volume_dead_lying_decay, fill = 0)
             
             parameters$volume_dead_lying <- data$deadwood %>%
