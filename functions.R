@@ -43,7 +43,7 @@ get_data <- function(plot.id){
   
   plot <- tbl(KELuser, "plot") %>% 
     filter(id %in% plot.id) %>% 
-    select(plot_id = id, date, plotid, census, country, location, lng, lat, plotsize, foresttype, altitude_m, aspect)
+    select(plot_id = id, date, plotid, census, country, location, lng, lat, plotsize, foresttype, altitude_m, aspect, dbh_min)
   
   tree <- tbl(KELuser, "tree") %>% 
     select(tree_id = id, plot_id, treeid, onplot, treetype, status, growth, species, dbh_mm, height_m, decayht, decay, decay_wood) %>% 
@@ -51,6 +51,7 @@ get_data <- function(plot.id){
   
   deadwood <- tbl(KELuser, "deadwood") %>% 
     inner_join(., plot, by = 'plot_id') %>%
+    filter(date < 2014 & dbh_mm >= 100 | date >= 2014 & dbh_mm >= 60) %>%
     select(plot_id, species, dbh_mm, decay)
 
   deadwood_tree <- tbl(KELuser, "deadwood_position") %>%
@@ -214,23 +215,23 @@ calculate_parameters <- function(data, dataType){
         
         parameters$tree_parameters <- data$tree %>%
           filter(!onplot %in% c(0, 99), 
-                 !is.na(dbh_mm)) %>%
+                 dbh_mm >= dbh_min) %>%
           mutate(ba = pi * dbh_mm ^ 2 / 4 / 1000000,
                  decay = ifelse(decay %in% 99, NA, decay)) %>%
           group_by(plot_id) %>%
           summarise(plotsize = first(plotsize),
                     n_trees_live_500 = length(treeid[dbh_mm >= 500 & status %in% c(1:4)]),
                     n_trees_live_700 = length(treeid[dbh_mm >= 700 & status %in% c(1:4)]),
-                    n_trees_dead_500 = length(treeid[dbh_mm >= 500 & status %in% c(11:23)]),
-                    n_trees_dead_700 = length(treeid[dbh_mm >= 700 & status %in% c(11:23)]),
-                    n_trees_dead_60 = length(treeid[dbh_mm >= 60 & status %in% c(11:23)]),
-                    dbh_quadrmean_dead_60 = sqrt(mean(dbh_mm[dbh_mm >= 60 & status %in% c(11:23)]^2)),
+                    n_trees_dead_500 = length(treeid[dbh_mm >= 500 & status %in% c(11:13,15:23)]),
+                    n_trees_dead_700 = length(treeid[dbh_mm >= 700 & status %in% c(11:13,15:23)]),
+                    n_trees_dead_60 = length(treeid[dbh_mm >= 60 & status %in% c(11:13,15:23)]),
+                    dbh_quadrmean_dead_60 = sqrt(mean(dbh_mm[dbh_mm >= 60 & status %in% c(11:13,15:23)]^2)),
                     dbh_quadrmean_dead_60 = ifelse(dbh_quadrmean_dead_60 %in% "NaN", NA, dbh_quadrmean_dead_60),
-                    ba_dead_60 = sum(ba[dbh_mm >= 60 & status %in% c(11:23)]),
-                    n_trees_dead_100 = length(treeid[dbh_mm >= 100 & status %in% c(11:23)]),
-                    dbh_quadrmean_dead_100 = sqrt(mean(dbh_mm[dbh_mm >= 100 & status %in% c(11:23)]^2)),
+                    ba_dead_60 = sum(ba[dbh_mm >= 60 & status %in% c(11:13,15:23)]),
+                    n_trees_dead_100 = length(treeid[dbh_mm >= 100 & status %in% c(11:13,15:23)]),
+                    dbh_quadrmean_dead_100 = sqrt(mean(dbh_mm[dbh_mm >= 100 & status %in% c(11:13,15:23)]^2)),
                     dbh_quadrmean_dead_100 = ifelse(dbh_quadrmean_dead_100 %in% "NaN", NA, dbh_quadrmean_dead_100),
-                    ba_dead_100 = sum(ba[dbh_mm >= 100 & status %in% c(11:23)]),
+                    ba_dead_100 = sum(ba[dbh_mm >= 100 & status %in% c(11:13,15:23)]),
                     n_trees_live_60 = length(treeid[dbh_mm >= 60 & status %in% c(1:4)]),
                     dbh_quadrmean_live_60 = sqrt(mean(dbh_mm[dbh_mm >= 60 & status %in% c(1:4)]^2)),
                     dbh_quadrmean_live_60 = ifelse(dbh_quadrmean_live_60 %in% "NaN", NA, dbh_quadrmean_live_60),
@@ -253,10 +254,10 @@ calculate_parameters <- function(data, dataType){
                     dbh_max_live_60 = ifelse(dbh_max_live_60 %in% -Inf, NA, dbh_max_live_60),
                     dbh_max_live_100 = max(dbh_mm[dbh_mm >= 100 & status %in% c(1:4)]),
                     dbh_max_live_100 = ifelse(dbh_max_live_100 %in% -Inf, NA, dbh_max_live_100),
-                    decay_div_standing_60 = sd(decay[dbh_mm >= 60 & status %in% c(11:23)], na.rm = T),
-                    decay_div_standing_100 = sd(decay[dbh_mm >= 100 & status %in% c(11:23)], na.rm = T),
-                    dbh_div_dead_60 = sd(dbh_mm[dbh_mm >= 60 & status %in% c(11:23)]),
-                    dbh_div_dead_100 = sd(dbh_mm[dbh_mm >= 100 & status %in% c(11:23)])) %>%
+                    decay_div_standing_60 = sd(decay[dbh_mm >= 60 & status %in% c(11:13,15:23)], na.rm = T),
+                    decay_div_standing_100 = sd(decay[dbh_mm >= 100 & status %in% c(11:13,15:23)], na.rm = T),
+                    dbh_div_dead_60 = sd(dbh_mm[dbh_mm >= 60 & status %in% c(11:13,15:23)]),
+                    dbh_div_dead_100 = sd(dbh_mm[dbh_mm >= 100 & status %in% c(11:13,15:23)])) %>%
           mutate(ba_dead_60 = ifelse(ba_dead_60 %in% 0 , NA, ba_dead_60),
                  ba_dead_100 = ifelse(ba_dead_100 %in% 0, NA, ba_dead_100),
                  ba_live_60 = ifelse(ba_live_60 %in% 0, NA, ba_live_60),
@@ -280,7 +281,7 @@ calculate_parameters <- function(data, dataType){
         
         parameters$dominant_species <- data$tree %>%
           filter(!onplot %in% c(0, 99),
-                 !is.na(dbh_mm),
+                 dbh_mm >= dbh_min,
                  status %in% c(1:4)) %>%
           mutate(ba = pi * dbh_mm ^ 2 / 4 / 1000000) %>%
           group_by(plot_id, species) %>%
@@ -295,7 +296,7 @@ calculate_parameters <- function(data, dataType){
         parameters$biomass_volume <- data$tree %>%
           filter(!onplot %in% c(0, 99),
                  status %in% c(1:4),
-                 !is.na(dbh_mm),
+                 dbh_mm >= dbh_min,
                  !species %in% "99") %>%
           left_join(., data$wood_density %>% distinct(., species, density_gCm3), by = "species") %>%
           left_join(., data$biomass_eq, by = "species") %>%
@@ -324,9 +325,9 @@ calculate_parameters <- function(data, dataType){
         
         parameters$volume_dead_standing <- data$tree %>%
           filter(!onplot %in% c(0, 99),
-                 status %in% c(11:23),
+                 status %in% c(11:13, 15:23),
                  !decayht %in% 99,
-                 !dbh_mm %in% NA) %>%
+                 dbh_mm >= dbh_min) %>%
           mutate(decayht = case_when(
             decayht == 0 ~ 5,
             decayht == 1 ~ 15,
@@ -345,9 +346,9 @@ calculate_parameters <- function(data, dataType){
 
         parameters$biomass_dead_standing <- data$tree %>%
           filter(!onplot %in% c(0, 99),
-                 status %in% c(11:23),
+                 status %in% c(11:13, 15:23),
                  !decayht %in% 99,
-                 !dbh_mm %in% NA,
+                 dbh_mm >= dbh_min,
                  !species %in% "99",
                  decay %in% c(1:5) | decay_wood %in% c(1:5)) %>%
           mutate(decayht = case_when(
@@ -448,31 +449,50 @@ calculate_parameters <- function(data, dataType){
             
             # volume and biomass of lying deadwood - transects ------------------------
             
-            parameters$volume_dead_lying_decay <- data$deadwood %>%
-              filter(!decay %in% 99) %>%
+            parameters$volume_dead_lying_decay_60 <- data$deadwood %>%
+              filter(!decay %in% 99 & dbh_mm >= 60) %>%
               group_by(plot_id, decay) %>%
               summarise(volume_dead_lying_decay = round(((pi ^ 2 * sum((dbh_mm * 0.001) ^ 2)) / 800) * 10000, 0)) %>%
-              mutate(decay = paste0("volume_dead_lying_decay", decay)) %>%
+              mutate(decay = paste0("volume_dead_lying_decay_60", decay)) %>%
+              spread(decay, volume_dead_lying_decay, fill = 0)
+            
+            parameters$volume_dead_lying_decay_100 <- data$deadwood %>%
+              filter(!decay %in% 99 & dbh_mm >= 100) %>%
+              group_by(plot_id, decay) %>%
+              summarise(volume_dead_lying_decay = round(((pi ^ 2 * sum((dbh_mm * 0.001) ^ 2)) / 800) * 10000, 0)) %>%
+              mutate(decay = paste0("volume_dead_lying_decay_100", decay)) %>%
               spread(decay, volume_dead_lying_decay, fill = 0)
             
             parameters$volume_dead_lying <- data$deadwood %>%
               group_by(plot_id) %>%
-              summarise(volume_dead_lying = round(((pi ^ 2 * sum((dbh_mm * 0.001) ^ 2)) / 800) * 10000, 0))
+              summarise(volume_dead_lying_60 = round(((pi ^ 2 * sum((dbh_mm[dbh_mm >= 60] * 0.001) ^ 2)) / 800) * 10000, 0),
+                        volume_dead_lying_100 = round(((pi ^ 2 * sum((dbh_mm[dbh_mm >= 100] * 0.001) ^ 2)) / 800) * 10000, 0))
             
-            parameters$biomass_dead_lying <- data$deadwood %>%
-              filter(!decay %in% 99 & !species %in% "99") %>%
+            parameters$biomass_dead_lying_60 <- data$deadwood %>%
+              filter(!decay %in% 99 & !species %in% "99" & dbh_mm >= 60) %>%
               left_join(., data$wood_density, by = c("species", "decay" = "decay_class")) %>%
               group_by(plot_id, decay, species) %>%
               summarise(volume = ((pi ^ 2 * sum((dbh_mm * 0.001) ^ 2)) / 800) * 10000,
                         biomass = volume * (first(density_gCm3) * first(relative_density) * 1000)) %>%
               group_by(plot_id) %>%
-              summarise(biomass_dead_lying = round(sum(biomass), 0))
+              summarise(biomass_dead_lying_60 = round(sum(biomass), 0))
+            
+            parameters$biomass_dead_lying_100 <- data$deadwood %>%
+              filter(!decay %in% 99 & !species %in% "99" & dbh_mm >= 100) %>%
+              left_join(., data$wood_density, by = c("species", "decay" = "decay_class")) %>%
+              group_by(plot_id, decay, species) %>%
+              summarise(volume = ((pi ^ 2 * sum((dbh_mm * 0.001) ^ 2)) / 800) * 10000,
+                        biomass = volume * (first(density_gCm3) * first(relative_density) * 1000)) %>%
+              group_by(plot_id) %>%
+              summarise(biomass_dead_lying_100 = round(sum(biomass), 0))
             
             parameters$div_dead_lying <- data$deadwood %>%
               mutate(decay = ifelse(decay %in% 99, NA, decay)) %>%
               group_by(plot_id) %>%
-              summarise(decay_div_lying = round(sd(decay, na.rm = T), 2),
-                        diam_div_lying = round(sd(dbh_mm), 2))
+              summarise(decay_div_lying_60 = round(sd(decay[dbh_mm >= 60], na.rm = T), 2),
+                        decay_div_lying_100 = round(sd(decay[dbh_mm >= 100], na.rm = T), 2),
+                        diam_div_lying_60 = round(sd(dbh_mm[dbh_mm >= 60]), 2),
+                        diam_div_lying_100 = round(sd(dbh_mm[dbh_mm >= 100]), 2))
               
             
           } else {
