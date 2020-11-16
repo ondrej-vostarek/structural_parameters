@@ -66,7 +66,8 @@ get_data <- function(plot.id){
 
   core <- tbl(KELuser, "core") %>% 
     inner_join(., tree, by = 'tree_id') %>%
-    filter(treetype %in% "0" & onplot %in% c(1, 2) | treetype %in% c("m", "x"),    
+    filter(coretype %in% 1,
+           treetype %in% "0" & onplot %in% c(1, 2) | treetype %in% c("m", "x"),    
            growth %in% 1,
            !dbh_mm < 100,
            !corestatus %in% c(2, 3)) %>% 
