@@ -574,7 +574,7 @@ calculate_parameters <- function(data, dataType){
                            foresttype = case_when(
                              foresttype %in% "spruce" ~ "regeneration_250_100", 
                              foresttype %in% "beech" ~ "regeneration_250_60",
-                             foresttype %in% "fraxinus" ~ "regeneration_250_50")) %>%
+                             foresttype %in% "thermophilic" ~ "regeneration_250_50")) %>%
                     group_by(plot_id, foresttype) %>%
                     summarise(regeneration_250_dbh_min = round(sum(count) * 10000 / min(plotsize), 0)) %>%
                     spread(foresttype, regeneration_250_dbh_min)
