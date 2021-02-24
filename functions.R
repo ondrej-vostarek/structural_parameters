@@ -673,7 +673,9 @@ calculate_parameters <- function(data, dataType){
                             mutate(distance_m = sqrt(abs(x_m^2 + y_m^2)),
                                    distance_m = ifelse(row_number() != 1, lag(distance_m, 1), distance_m)) %>%
                             inner_join(., data$mort_plot, by = c("plot_id", "date")) %>%
-                            filter(dbh_mm >= dbh_min,
+                            mutate(dbh_threshold = ifelse(dbh_mm >= dbh_min, 1, 0),
+                                   dbh_threshold = min(dbh_threshold)) %>%
+                            filter(dbh_threshold %in% 1,
                                    distance_m <= plotsize) %>%
                             group_by(plot_id, date, plotid) %>%
                             summarise(n = n()) %>% 
